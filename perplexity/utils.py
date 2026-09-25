@@ -5,21 +5,21 @@ This module provides helper functions for retry logic, validation,
 and other common operations.
 """
 
-import time
 import random
+import time
 from functools import wraps
 from typing import Any, Callable, Optional, Tuple, Type
 
-from .exceptions import ValidationError
 from .config import (
-    RETRY_MAX_ATTEMPTS,
+    MODEL_MAPPINGS,
+    RATE_LIMIT_MAX_DELAY,
+    RATE_LIMIT_MIN_DELAY,
     RETRY_BACKOFF_FACTOR,
+    RETRY_MAX_ATTEMPTS,
     SEARCH_MODES,
     SEARCH_SOURCES,
-    MODEL_MAPPINGS,
-    RATE_LIMIT_MIN_DELAY,
-    RATE_LIMIT_MAX_DELAY,
 )
+from .exceptions import ValidationError
 from .logger import get_logger
 
 logger = get_logger("utils")
@@ -272,8 +272,9 @@ def parse_nested_json_response(content_json: dict) -> dict:
     """
     Parse nested JSON response from Perplexity API.
 
-    Extracts answer and chunks from the nested 'text' field structure:
-    text (JSON string) -> list of steps -> FINAL step -> answer (JSON string)
+    Extracts answer and chunks from either:
+    1. Modern structure: 'blocks' list -> block with intended_usage=='ask_text' -> markdown_block
+    2. Legacy structure: 'text' (JSON string) -> list of steps -> FINAL step -> answer
 
     Args:
         content_json: Response JSON from API
@@ -290,6 +291,28 @@ def parse_nested_json_response(content_json: dict) -> dict:
     if not isinstance(content_json, dict):
         return content_json
 
+    # 1. Modern API response format: 'blocks'
+    if "blocks" in content_json and isinstance(content_json["blocks"], list):
+        for block in content_json["blocks"]:
+            if isinstance(block, dict):
+                usage = block.get("intended_usage")
+                md_block = block.get("markdown_block")
+                if usage == "ask_text" and isinstance(md_block, dict):
+                    if "answer" in md_block:
+                        content_json["answer"] = md_block.get("answer", "")
+                        content_json["chunks"] = md_block.get("chunks", [])
+                        return content_json
+
+        # Fallback: any block containing a markdown_block with an answer
+        for block in content_json["blocks"]:
+            if isinstance(block, dict):
+                md_block = block.get("markdown_block")
+                if isinstance(md_block, dict) and "answer" in md_block:
+                    content_json["answer"] = md_block.get("answer", "")
+                    content_json["chunks"] = md_block.get("chunks", [])
+                    return content_json
+
+    # 2. Legacy API response format: 'text'
     if "text" in content_json and content_json["text"]:
         try:
             raw_text = content_json["text"]
