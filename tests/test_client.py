@@ -14,7 +14,6 @@ from perplexity.exceptions import (
     RateLimitError,
     ValidationError,
 )
-from perplexity.utils import parse_nested_json_response
 from perplexity_async.client import Client as AsyncClient
 
 
@@ -32,7 +31,7 @@ def make_sse_frames(answer: str = "OK") -> tuple[dict, list[bytes]]:
         f"event: message\r\ndata: {json.dumps(message)}".encode("utf-8"),
         b"event: end_of_stream\r\ndata: {}",
     ]
-    expected = parse_nested_json_response(json.loads(json.dumps(message)))
+    expected = {**message, "answer": answer, "chunks": []}
     return expected, frames
 
 
