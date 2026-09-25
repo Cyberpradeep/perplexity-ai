@@ -5,21 +5,21 @@ This module provides helper functions for retry logic, validation,
 and other common operations.
 """
 
-import time
 import random
+import time
 from functools import wraps
-from typing import Any, Callable, Optional, Tuple, Type
+from typing import Any, Callable, Optional, Tuple, Type, Union
 
-from .exceptions import ValidationError
 from .config import (
-    RETRY_MAX_ATTEMPTS,
+    MODEL_MAPPINGS,
+    RATE_LIMIT_MAX_DELAY,
+    RATE_LIMIT_MIN_DELAY,
     RETRY_BACKOFF_FACTOR,
+    RETRY_MAX_ATTEMPTS,
     SEARCH_MODES,
     SEARCH_SOURCES,
-    MODEL_MAPPINGS,
-    RATE_LIMIT_MIN_DELAY,
-    RATE_LIMIT_MAX_DELAY,
 )
+from .exceptions import ValidationError
 from .logger import get_logger
 
 logger = get_logger("utils")
@@ -175,8 +175,8 @@ def validate_search_params(
 
 
 def validate_query_limits(
-    copilot_remaining: int,
-    file_upload_remaining: int,
+    copilot_remaining: Union[int, float],
+    file_upload_remaining: Union[int, float],
     mode: str,
     files_count: int,
 ) -> None:
